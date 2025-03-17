@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 4000;
@@ -20,7 +21,7 @@ app.get("/",(req,res)=>
 
 // Image Storage Engine
 const storage = multer.diskStorage({
-    destination: './upload/images',
+    destination: process.env.UPLOAD_DIR || 'upload/images',
     filename: (req, file, cb) => {
         return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
     }
@@ -212,7 +213,8 @@ const user = new User({
                       id:user.id
                     }
                   }
-                  const token = jwt.sign(data,'secret_ecom');
+
+                  const token = jwt.sign(data,process.env.JWT_SECRET);
                   res.json({
                     success:true,
                     token:token
@@ -250,6 +252,7 @@ const user = new User({
           console.log("Popular in women fetched");
           res.send(popular_in_women);
         });
+        
         // creating middleware to fetch user
         const fetchUser = async(req,res,next)=>
           {
@@ -259,7 +262,7 @@ const user = new User({
             }
             else{
               try{
-                const data = jwt.verify(token,'secret_ecom');
+                const data = jwt.verify(token,process.env.JWT_SECRET);
                 req.user = data.user
                 next();
               }
