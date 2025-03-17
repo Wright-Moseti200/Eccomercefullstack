@@ -1,0 +1,49 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  padding: 0;
+  box-sizing:border-box;
+}
+
+.hero
+{
+  background:linear-gradient(180deg,rgba(128, 0, 128, 0.25),white);
+  height:650px;
+}
+.hero2
+{
+  background:linear-gradient(180deg, rgba(128, 0, 128, 0.25), white);
+}
+input::placeholder
+{
+  color:grey;
+  font-family: Arial,
+  Helvetica,
+  sans-serif;
+  ;
+}
+.login
+{
+  background-color:rgba(128, 0, 128, 0.20);
+  height:655px;
+}
+
+.login-input
+{
+  padding: 25px;
+}
+
+.card
+{
+  transition: all 250ms linear;
+  cursor: pointer;
+}
+
+.card:hover
+{
+  transform: scale(1.07);
+}
