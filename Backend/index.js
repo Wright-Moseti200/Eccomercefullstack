@@ -8,7 +8,22 @@ const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+    origin: [
+        'https://eccomercefullstack.onrender.com',
+        'https://eccomercebackend-u1ce.onrender.com'
+    ],
+    methods: ['GET', 'POST', 'DELETE', 'PUT', 'PATCH'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'auth-token']
+}));
+
+// Add this after your other middleware
+app.use((req, res, next) => {
+    res.header('Content-Security-Policy', "upgrade-insecure-requests");
+    res.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
 
 // Connect to MongoDB
 mongoose.connect('mongodb+srv://wright:marani001@cluster0.ccyxm.mongodb.net/ecommerce');
@@ -29,13 +44,30 @@ const storage = multer.diskStorage({
 
 const upload = multer({storage: storage});
 
+const BACKEND_URL = process.env.BACKEND_URL || 'https://eccomercebackend-u1ce.onrender.com';
+
 // Creating Upload Endpoint for Images
 app.use('/images', express.static('upload/images'));
 app.post('/upload', upload.single('product'), (req, res) => {
-    res.json({
-        success: 1,
-         image_url: `https://eccomercebackend-u1ce.onrender.com/images/${req.file.filename}`
-    });
+    try {
+        if (!req.file) {
+            return res.status(400).json({
+                success: 0,
+                message: "No file uploaded"
+            });
+        }
+        
+        const imageUrl = `${BACKEND_URL}/images/${req.file.filename}`;
+        res.json({
+            success: 1,
+            image_url: imageUrl
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: 0,
+            message: error.message
+        });
+    }
 });
 
 // Shema for creating product
@@ -312,4 +344,3 @@ app.listen(port,(error)=>
         }
     });
 
-    
