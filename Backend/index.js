@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const app = express();
+const port = process.env.PORT || 4000;
 const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
@@ -299,6 +300,16 @@ const user = new User({
           res.json(userData.cartData);
         })
 
-
+app.listen(port,(error)=>
+    {
+        if(error)
+        {
+            console.log("Error in starting server");
+        }
+        else
+        {
+            console.log("Server started on port",port);
+        }
+    });
 
     
