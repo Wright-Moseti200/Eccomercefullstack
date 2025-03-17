@@ -24,7 +24,7 @@ const Login = () => {
   const login = async () => {
     console.log("Login Function Executed", formData);
     try {
-      const response = await fetch('http://localhost:4000/login', {
+      const response = await fetch('https://eccomercebackend-u1ce.onrender.com/login', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',
