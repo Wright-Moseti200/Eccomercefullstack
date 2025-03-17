@@ -17,7 +17,7 @@ const Home = () =>
   const [new_collection,setNew_collection]=useState([]);
 
    useEffect(()=>{
-    fetch('http://localhost:4000/newcollections')
+    fetch('https://eccomercebackend-u1ce.onrender.com/newcollections')
     .then((response)=>response.json())
     .then((data)=>setNew_collection(data));
    },[]);
@@ -25,7 +25,7 @@ const Home = () =>
    const [popularProducts,setPopularProducts]=useState([]);
 
    useEffect(()=>{
-    fetch('http://localhost:4000/popularinwomen')
+    fetch('https://eccomercebackend-u1ce.onrender.com/popularinwomen')
     .then((response)=>response.json())
     .then((data)=>setPopularProducts(data));
    },[]);
