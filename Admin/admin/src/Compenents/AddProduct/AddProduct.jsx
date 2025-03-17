@@ -40,7 +40,7 @@ const AddProduct = () => {
             if(responseData.success)
                 {
                  product.image = responseData.image_url;
-                 await fetch('https://eccomercebackend-u1ce.onrender.com/addproduct',{
+                 await fetch('https://eccomercebackend-u1ce.onrender./addproduct',{
                   method:'POST',
                   headers:{
                       Accept:'application/json',

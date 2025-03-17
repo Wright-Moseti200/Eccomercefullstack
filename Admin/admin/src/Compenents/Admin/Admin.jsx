@@ -1,8 +1,8 @@
 import React from 'react'
 import "./Admin.css";
-import Sidebar from '../../Compenents/Sidebar/Sidebar';
-import AddProduct from '../../Compenents/AddProduct/AddProduct';
-import ListProduct from '../../Compenents/ListProduct/ListProduct';
+import Sidebar from '../Sidebar/Sidebar';
+import AddProduct from '../AddProduct/AddProduct';
+import ListProduct from '../ListProduct/ListProduct';
 import { Routes,Route } from 'react-router-dom';
 const Admin = () => {
   return (
