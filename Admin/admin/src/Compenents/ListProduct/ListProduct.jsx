@@ -7,7 +7,7 @@ const ListProduct = () => {
 
   const fetchInfo = async ()=>
     {
-      await fetch('http://localhost:4000/allproducts')
+      await fetch('https://eccomercebackend-u1ce.onrender.com/allproducts')
       .then(response=>response.json())
       .then((data)=>{setAllProduct(data)});
     }
@@ -19,7 +19,7 @@ const ListProduct = () => {
 
       const remove_product = async(id)=>
         {
-          await fetch(`http://localhost:4000/removeproduct/`,{
+          await fetch(`https://eccomercebackend-u1ce.onrender.com/removeproduct/`,{
             method:'DELETE',
             headers:{
               Accept:'application/json',
