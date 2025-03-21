@@ -1,4 +1,3 @@
-require('dotenv').config();
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 4000;
@@ -21,7 +20,7 @@ app.get("/",(req,res)=>
 
 // Image Storage Engine
 const storage = multer.diskStorage({
-    destination: process.env.UPLOAD_DIR || 'upload/images',
+    destination: './upload/images',
     filename: (req, file, cb) => {
         return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
     }
@@ -34,7 +33,7 @@ app.use('/images', express.static('upload/images'));
 app.post('/upload', upload.single('product'), (req, res) => {
     res.json({
         success: 1,
-        image_url: `https://eccomercebackend-u1ce.onrender.com/images/${req.file.filename}`
+        image_url: `http://localhost:${port}/images/${req.file.filename}`
     });
 });
 
@@ -213,8 +212,7 @@ const user = new User({
                       id:user.id
                     }
                   }
-
-                  const token = jwt.sign(data,process.env.JWT_SECRET);
+                  const token = jwt.sign(data,'secret_ecom');
                   res.json({
                     success:true,
                     token:token
@@ -252,7 +250,6 @@ const user = new User({
           console.log("Popular in women fetched");
           res.send(popular_in_women);
         });
-        
         // creating middleware to fetch user
         const fetchUser = async(req,res,next)=>
           {
@@ -262,7 +259,7 @@ const user = new User({
             }
             else{
               try{
-                const data = jwt.verify(token,process.env.JWT_SECRET);
+                const data = jwt.verify(token,'secret_ecom');
                 req.user = data.user
                 next();
               }
