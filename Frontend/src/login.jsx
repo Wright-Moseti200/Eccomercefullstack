@@ -50,7 +50,7 @@ const Login = () => {
   const signup = async () => {
     console.log("Signup Function Executed", formData);
     try {
-      const response = await fetch('http://localhost:4000/signup', {
+      const response = await fetch('https://eccomercebackend-u1ce.onrender.com/signup', {
         method: 'POST',
         headers: {
           'Accept': 'application/json',

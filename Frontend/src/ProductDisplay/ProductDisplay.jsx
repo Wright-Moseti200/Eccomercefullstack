@@ -7,6 +7,16 @@ import { ShopContext } from '../shopcontext';
 const ProductDisplay = (props) => {
     const {product} = props; 
     const {addToCart} = useContext(ShopContext);
+
+    const handleAddToCart = () => {
+        const authToken = localStorage.getItem('auth-token');
+        if (!authToken) {
+            alert('Please login to add items to cart');
+            return;
+        }
+        addToCart(product.id);
+    }
+
   return (
     <div className='productdisplay'>
        <div  className='productdisplay-left'>
@@ -50,7 +60,7 @@ const ProductDisplay = (props) => {
               <div>XXL</div>
             </div>
        </div>
-       <button onClick={()=>{addToCart(product.id)}}>ADD TO CART</button>
+       <button onClick={handleAddToCart}>ADD TO CART</button>
        <p className='productdisplay-right-category'><span>Category :</span> Women , T-shirt, Crop Top</p>
        <span className='productdisplay-right-category'><span>Tags :</span>Mordern latest</span>
        </div>
@@ -59,4 +69,3 @@ const ProductDisplay = (props) => {
 }
 
 export default ProductDisplay
- 
