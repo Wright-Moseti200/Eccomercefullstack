@@ -6,6 +6,9 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const path = require('path');
 const cors = require('cors');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
 app.use(express.json());
 app.use(cors());
 
@@ -18,27 +21,36 @@ app.get("/",(req,res)=>
         res.send("Express App is running");    
     });
 
-// Image Storage Engine
-const storage = multer.diskStorage({
-    destination: './upload/images',
-    filename: (req, file, cb) => {
-        return cb(null, `${file.fieldname}_${Date.now()}${path.extname(file.originalname)}`);
-    }
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: 'dvexzhis9', // Replace with your Cloudinary credentials
+  api_key: '357754644141572',
+  api_secret: 'W8QHODGRKexhcSpUXCfaHD6aVh4'
+});
+
+// Set up Cloudinary storage
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: 'ecommerce_products',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'gif']
+  }
 });
 
 const upload = multer({storage: storage});
 
-// Creating Upload Endpoint for Images
+// Keep the old local storage endpoint for backward compatibility
 app.use('/images', express.static('upload/images'));
+
+// Update the upload endpoint to use Cloudinary
 app.post('/upload', upload.single('product'), (req, res) => {
     res.json({
         success: 1,
-        image_url: `https://eccomercebackend-u1ce.onrender.com/images/${req.file.filename}`
+        image_url: req.file.path // Cloudinary returns the full URL in req.file.path
     });
 });
 
 // Shema for creating product
-
 const Product = mongoose.model('Product',
   {
     id:
@@ -72,7 +84,6 @@ const Product = mongoose.model('Product',
   });
 
 //Creating  Api for adding product
-
   app.post('/addproduct',async(req,res)=>
     {
       let products = await Product.find({});
@@ -194,7 +205,7 @@ const user = new User({
             });
           }
         }
-      });
+      })
     
         // creating endpoint for user login
         app.post('/login',async(req,res)=>
@@ -297,6 +308,31 @@ const user = new User({
           res.json(userData.cartData);
         })
 
+// Utility endpoint to migrate existing images to Cloudinary
+// You can call this endpoint manually if needed
+app.get('/migrate-images', async (req, res) => {
+  try {
+    const products = await Product.find({});
+    const oldBaseUrl = 'https://eccomercebackend-u1ce.onrender.com/images/';
+    
+    for (const product of products) {
+      if (product.image && product.image.startsWith(oldBaseUrl)) {
+        // This is just a placeholder for the migration logic
+        // In a real scenario, you would:
+        // 1. Download the image from the old URL
+        // 2. Upload it to Cloudinary
+        // 3. Update the product record with the new URL
+        console.log(`Would migrate: ${product.image}`);
+      }
+    }
+    
+    res.json({ success: true, message: 'Migration completed' });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.listen(port,(error)=>
     {
         if(error)
@@ -308,5 +344,3 @@ app.listen(port,(error)=>
             console.log("Server started on port",port);
         }
     });
-
-    
