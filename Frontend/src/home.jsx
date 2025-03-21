@@ -86,11 +86,11 @@ const Home = () =>
           <br />
           <div
             className="w-full flex flex-col justify-center items-center"
-            style={{ height: "550px" }}
+            style={{ height: "500px" }}
           >
             <div
               className="flex justify-center items-center gap-32 hero2"
-              style={{ width: "1000px" }}
+              style={{ width: "850px" }}
             >
               <div className="flex flex-col justify-center items-center">
                 <h1 className="text-6xl font-bold w-110 text-center">
