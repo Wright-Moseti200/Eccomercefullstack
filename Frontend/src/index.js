@@ -11,7 +11,7 @@ import Login from './login';
 import Cart from './cart';
 import ShopContentProvider from './shopcontext';
 import Product from './product';
-import OrderSuccess from './components/OrderSuccess';
+
 const App = () => {
   return (
     <ShopContentProvider>
@@ -27,7 +27,6 @@ const App = () => {
             </Route>
             <Route path="login" element={<Login />} />
             <Route path="cart" element={<Cart />} />
-            <Route path="/order-success" element={<OrderSuccess />} />
           </Route>
         </Routes>
       </BrowserRouter>

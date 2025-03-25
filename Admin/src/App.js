@@ -1,22 +1,13 @@
-import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import React from 'react'
+import Navbar from './Compenents/Navbar/navbar';
 import Admin from './Pages/Admin/Admin';
-import AdminLogin from './Pages/Admin/AdminLogin';
-import ErrorBoundary from './Components/ErrorBoundary';
-import './App.css';
-
-function App() {
+const App = () => {
   return (
-    <ErrorBoundary>
-      <div className="app">
-        <Routes>
-          <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/*" element={<Admin />} />
-          <Route path="/" element={<Navigate to="/admin/login" replace />} />
-        </Routes>
-      </div>
-    </ErrorBoundary>
-  );
+    <div>
+      <Navbar/>
+      <Admin/>
+    </div>
+  )
 }
 
-export default App;
+export default App
