@@ -105,7 +105,37 @@ const ShopContentProvider = (props) => {
         return totalItem;
     }
 
-    let contextValue = { all_product, getTotalCartItems, cartItems, addToCart, removeFromCart, getTotalCartAmount };
+    const handleCheckout = async () => {
+        if (!localStorage.getItem('auth-token')) {
+            alert('Please login to checkout');
+            return;
+        }
+    
+        try {
+            const response = await fetch('https://eccomercebackend-u1ce.onrender.com/create-checkout-session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': localStorage.getItem('auth-token')
+                },
+                body: JSON.stringify({
+                    cartItems
+                })
+            });
+    
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+    
+            const { url } = await response.json();
+            window.location.href = url; // Redirect to Stripe Checkout
+        } catch (error) {
+            console.error('Checkout error:', error);
+            alert('Checkout failed. Please try again.');
+        }
+    };
+
+    let contextValue = { all_product, getTotalCartItems, cartItems, addToCart, removeFromCart, getTotalCartAmount,handleCheckout };
 
     return (
         <ShopContext.Provider value={contextValue}>

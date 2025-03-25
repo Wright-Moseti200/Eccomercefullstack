@@ -6,48 +6,8 @@ import { ShopContext } from '../shopcontext';
 import remove_icon from "../Assets/cart_cross_icon.png";
 
 const CartItems = () => {
-    const { all_product, cartItems, removeFromCart, getTotalCartAmount, user } = useContext(ShopContext);
-    const [promoCode, setPromoCode] = useState('');
-
-    const handleCheckout = async () => {
-        if (!localStorage.getItem('auth-token')) {
-            alert('Please login to checkout');
-            return;
-        }
-
-        try {
-            const response = await fetch('https://eccomercebackend-u1ce.onrender.com/create-payment', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'auth-token': localStorage.getItem('auth-token')
-                },
-                body: JSON.stringify({
-                    cartItems
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Payment failed');
-            }
-
-            const { url } = await response.json();
-            window.location.href = url;
-        } catch (error) {
-            console.error('Checkout error:', error);
-            alert('Checkout failed. Please try again.');
-        }
-    };
-
-    const handlePromoCode = (e) => {
-        setPromoCode(e.target.value);
-    };
-
-    const submitPromoCode = () => {
-        // Add promo code logic here
-        alert('Promo code feature coming soon!');
-    };
-
+    const { all_product, cartItems, removeFromCart, getTotalCartAmount, handleCheckout } = useContext(ShopContext);
+   
     return (
         <div className='cartitems'>
             <div className='cartitems-format-main'>
@@ -112,13 +72,8 @@ const CartItems = () => {
                 <div className='cartitems-promocode'>
                     <p>If you have a promo code, Enter it here</p>
                     <div className='cartitems-promobox'>
-                        <input 
-                            type="text" 
-                            placeholder='promo code'
-                            value={promoCode}
-                            onChange={handlePromoCode}
-                        />
-                        <button onClick={submitPromoCode}>Submit</button>
+                        <input/>
+                        <button>Submit</button>
                     </div>
                 </div>
             </div>

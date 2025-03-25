@@ -8,7 +8,7 @@ const path = require('path');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const stripe = require('stripe')('sk_test_51R6atKFpdo6q6bSG0buCqdgjep1xABgwEDhFByVR2TM7E6y9aonEm22KxQGbP0CXTsnZrG44Lp1Y8gLw3isnHJ7z00SnZzufUs');
 
 app.use(express.json());
 app.use(cors());
@@ -309,70 +309,89 @@ const user = new User({
           res.json(userData.cartData);
         })
 
-        // Add this after your existing endpoints
-        app.post('/create-checkout-session', async (req, res) => {
-          try {
-            const { cartItems, userId } = req.body;
-            
-            // Get user's cart data
-            const userData = await User.findById(userId);
-            if (!userData) {
-              return res.status(404).json({ error: "User not found" });
-            }
-        
-            // Create line items for Stripe
-            const lineItems = await Promise.all(
-              Object.entries(cartItems).map(async ([productId, quantity]) => {
-                if (quantity > 0) {
-                  const product = await Product.findOne({ id: parseInt(productId) });
-                  return {
-                    price_data: {
-                      currency: 'usd',
-                      product_data: {
-                        name: product.name,
-                        images: [product.image],
-                      },
-                      unit_amount: Math.round(product.new_price * 100), // Stripe expects amount in cents
-                    },
-                    quantity: quantity,
-                  };
+        // Add payment endpoint after your existing endpoints
+app.post('/create-checkout-session', fetchUser, async (req, res) => {
+    try {
+        const { cartItems } = req.body;
+        let totalAmount = 0;
+        const lineItems = [];
+
+        // Get user's cart data
+        const userData = await User.findOne({ _id: req.user.id });
+        if (!userData) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Create line items from cart
+        for (const [productId, quantity] of Object.entries(cartItems)) {
+            if (quantity > 0) {
+                const product = await Product.findOne({ id: parseInt(productId) });
+                if (product) {
+                    lineItems.push({
+                        price_data: {
+                            currency: 'usd',
+                            product_data: {
+                                name: product.name,
+                                images: [product.image],
+                            },
+                            unit_amount: Math.round(product.new_price * 100), // Convert to cents
+                        },
+                        quantity: quantity,
+                    });
+                    totalAmount += product.new_price * quantity;
                 }
-              })
-            );
-        
-            // Filter out null values
-            const filteredLineItems = lineItems.filter(item => item);
-        
-            // Create Stripe session
-            const session = await stripe.checkout.sessions.create({
-              payment_method_types: ['card'],
-              line_items: filteredLineItems,
-              mode: 'payment',
-              success_url: `${process.env.BACKEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-              cancel_url: `${process.env.BACKEND_URL}/payment-cancel`,
-            });
-        
-            res.json({ url: session.url });
-          } catch (error) {
-            console.error('Payment error:', error);
-            res.status(500).json({ error: 'Payment session creation failed' });
-          }
-        });
-        
-        // Payment success endpoint
-        app.get('/payment-success', async (req, res) => {
-          try {
-            const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
-            // Clear user's cart after successful payment
-            if (session.payment_status === 'paid') {
-              // You might want to save the order details to your database here
-              res.redirect(`${process.env.FRONTEND_URL}/order-success`);
             }
-          } catch (error) {
-            console.error('Payment verification error:', error);
-            res.redirect(`${process.env.FRONTEND_URL}/order-failed`);
-          }
+        }
+
+        // Create Stripe session
+        const session = await stripe.checkout.sessions.create({
+            payment_method_types: ['card'],
+            line_items: lineItems,
+            mode: 'payment',
+            success_url: 'https://eccomercefullstack.onrender.com/payment-success',
+            cancel_url: 'https://eccomercefullstack.onrender.com/cart',
+            metadata: {
+                userId: req.user.id,
+            },
         });
+
+        res.json({ url: session.url });
+    } catch (error) {
+        console.error('Payment error:', error);
+        res.status(500).json({ error: 'Payment session creation failed' });
+    }
+});
+
+// Add webhook endpoint to handle successful payments
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+    const sig = req.headers['stripe-signature'];
+    let event;
+
+    try {
+        event = stripe.webhooks.constructEvent(req.body, sig, 'your_webhook_secret');
+    } catch (err) {
+        res.status(400).send(`Webhook Error: ${err.message}`);
+        return;
+    }
+
+    if (event.type === 'checkout.session.completed') {
+        const session = event.data.object;
+        
+        // Clear user's cart after successful payment
+        try {
+            const userId = session.metadata.userId;
+            const cart = {};
+            for (let i = 0; i < 300; i++) {
+                cart[i] = 0;
+            }
+            await User.findByIdAndUpdate(userId, { cartData: cart });
+        } catch (error) {
+            console.error('Error updating cart:', error);
+        }
+    }
+
+    res.json({ received: true });
+});
 
 app.listen(port,(error)=>
     {
