@@ -1,26 +1,22 @@
-import React from 'react'
-import Navbar from './Compenents/Navbar/navbar';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Admin from './Pages/Admin/Admin';
-import { Routes, Route } from 'react-router-dom';
-import AdminLogin from './Compenents/Login/AdminLogin';
-import ProtectedAdminRoute from './Compenents/ProtectedRoute';
-import Dashboard from './Components/Dashboard/Dashboard';
+import AdminLogin from './Components/Login/AdminLogin';
+import ErrorBoundary from './Components/ErrorBoundary';
+import './App.css';
 
-const App = () => {
+function App() {
   return (
-    <div>
-      <Navbar/>
-      <Admin/>
-      <Routes>
-        <Route path="/admin/login" element={<AdminLogin />} />
-        <Route path="/admin/*" element={
-          <ProtectedAdminRoute>
-            <Dashboard />
-          </ProtectedAdminRoute>
-        } />
-      </Routes>
-    </div>
-  )
+    <ErrorBoundary>
+      <div className="app">
+        <Routes>
+          <Route path="/admin/login" element={<AdminLogin />} />
+          <Route path="/admin/*" element={<Admin />} />
+          <Route path="/" element={<Navigate to="/admin/login" replace />} />
+        </Routes>
+      </div>
+    </ErrorBoundary>
+  );
 }
 
-export default App
+export default App;
