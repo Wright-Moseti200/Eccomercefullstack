@@ -11,7 +11,7 @@ import Login from './login';
 import Cart from './cart';
 import ShopContentProvider from './shopcontext';
 import Product from './product';
-import OrderSuccess from './order-success';
+import OrderSuccess from './components/OrderSuccess';
 const App = () => {
   return (
     <ShopContentProvider>

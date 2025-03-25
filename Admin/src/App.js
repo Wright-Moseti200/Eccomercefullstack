@@ -1,7 +1,7 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import Admin from './Pages/Admin/Admin';
-import AdminLogin from './Components/Login/AdminLogin';
+import AdminLogin from './Pages/Admin/AdminLogin';
 import ErrorBoundary from './Components/ErrorBoundary';
 import './App.css';
 
