@@ -47,3 +47,42 @@ input::placeholder
 {
   transform: scale(1.07);
 }
+
+/* Add to your existing CSS */
+.checkout-button {
+  width: 100%;
+  padding: 15px 0;
+  background: #ff4141;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.checkout-button:hover {
+  background: #ff2c2c;
+}
+
+.order-success {
+  text-align: center;
+  padding: 50px 20px;
+}
+
+.order-success h1 {
+  color: #2ecc71;
+  font-size: 2em;
+  margin-bottom: 20px;
+}
+
+.continue-shopping {
+  display: inline-block;
+  padding: 10px 20px;
+  background: #3498db;
+  color: white;
+  text-decoration: none;
+  border-radius: 5px;
+  margin-top: 20px;
+}

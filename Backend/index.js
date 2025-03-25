@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const app = express();
 const port = process.env.PORT || 4000;
@@ -8,6 +9,8 @@ const path = require('path');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const Order = require('./models/Order');
 
 app.use(express.json());
 app.use(cors());
@@ -308,28 +311,241 @@ const user = new User({
           res.json(userData.cartData);
         })
 
-// Utility endpoint to migrate existing images to Cloudinary
-// You can call this endpoint manually if needed
-app.get('/migrate-images', async (req, res) => {
+        // Add this after your existing endpoints
+        app.post('/create-checkout-session', async (req, res) => {
+          try {
+            const { cartItems, userId } = req.body;
+            
+            // Get user's cart data
+            const userData = await User.findById(userId);
+            if (!userData) {
+              return res.status(404).json({ error: "User not found" });
+            }
+        
+            // Create line items for Stripe
+            const lineItems = await Promise.all(
+              Object.entries(cartItems).map(async ([productId, quantity]) => {
+                if (quantity > 0) {
+                  const product = await Product.findOne({ id: parseInt(productId) });
+                  return {
+                    price_data: {
+                      currency: 'usd',
+                      product_data: {
+                        name: product.name,
+                        images: [product.image],
+                      },
+                      unit_amount: Math.round(product.new_price * 100), // Stripe expects amount in cents
+                    },
+                    quantity: quantity,
+                  };
+                }
+              })
+            );
+        
+            // Filter out null values
+            const filteredLineItems = lineItems.filter(item => item);
+        
+            // Create Stripe session
+            const session = await stripe.checkout.sessions.create({
+              payment_method_types: ['card'],
+              line_items: filteredLineItems,
+              mode: 'payment',
+              success_url: `${process.env.BACKEND_URL}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+              cancel_url: `${process.env.BACKEND_URL}/payment-cancel`,
+            });
+        
+            res.json({ url: session.url });
+          } catch (error) {
+            console.error('Payment error:', error);
+            res.status(500).json({ error: 'Payment session creation failed' });
+          }
+        });
+        
+        // Payment success endpoint
+        app.get('/payment-success', async (req, res) => {
+          try {
+            const session = await stripe.checkout.sessions.retrieve(req.query.session_id);
+            // Clear user's cart after successful payment
+            if (session.payment_status === 'paid') {
+              // You might want to save the order details to your database here
+              res.redirect(`${process.env.FRONTEND_URL}/order-success`);
+            }
+          } catch (error) {
+            console.error('Payment verification error:', error);
+            res.redirect(`${process.env.FRONTEND_URL}/order-failed`);
+          }
+        });
+
+        // Add this after your User schema
+const Admin = mongoose.model('Admin', {
+  email: {
+      type: String,
+      required: true,
+      unique: true
+  },
+  password: {
+      type: String,
+      required: true
+  },
+  isAdmin: {
+      type: Boolean,
+      default: true
+  }
+});
+
+// Add admin login endpoint
+app.post('/admin/login', async (req, res) => {
   try {
-    const products = await Product.find({});
-    const oldBaseUrl = 'https://eccomercebackend-u1ce.onrender.com/images/';
-    
-    for (const product of products) {
-      if (product.image && product.image.startsWith(oldBaseUrl)) {
-        // This is just a placeholder for the migration logic
-        // In a real scenario, you would:
-        // 1. Download the image from the old URL
-        // 2. Upload it to Cloudinary
-        // 3. Update the product record with the new URL
-        console.log(`Would migrate: ${product.image}`);
+      const admin = await Admin.findOne({ email: req.body.email });
+      if (!admin) {
+          return res.status(401).json({
+              success: false,
+              message: "Invalid credentials"
+          });
       }
-    }
-    
-    res.json({ success: true, message: 'Migration completed' });
+
+      if (admin.password === req.body.password) {
+          const token = jwt.sign(
+              { id: admin._id, isAdmin: true },
+              'secret_ecom',
+              { expiresIn: '24h' }
+          );
+          res.json({
+              success: true,
+              token,
+              isAdmin: true
+          });
+      } else {
+          res.status(401).json({
+              success: false,
+              message: "Invalid credentials"
+          });
+      }
   } catch (error) {
-    console.error('Migration error:', error);
-    res.status(500).json({ success: false, error: error.message });
+      res.status(500).json({
+          success: false,
+          message: "Server error"
+      });
+  }
+});
+
+// Add endpoint to get all orders
+app.get('/admin/orders', async (req, res) => {
+  try {
+      const orders = await Order.find()
+          .populate('user', 'name email')
+          .sort({ date: -1 });
+      res.json(orders);
+  } catch (error) {
+      res.status(500).json({
+          success: false,
+          message: "Error fetching orders"
+      });
+  }
+});
+
+// Add endpoint to generate receipt
+app.get('/admin/orders/:orderId/receipt', async (req, res) => {
+  try {
+      const order = await Order.findById(req.params.orderId)
+          .populate('user', 'name email')
+          .populate('items.product');
+          
+      if (!order) {
+          return res.status(404).json({
+              success: false,
+              message: "Order not found"
+          });
+      }
+
+      // Generate receipt data
+      const receiptData = {
+          orderNumber: order._id,
+          date: order.date,
+          customer: {
+              name: order.user.name,
+              email: order.user.email
+          },
+          items: order.items.map(item => ({
+              name: item.product.name,
+              quantity: item.quantity,
+              price: item.price,
+              total: item.quantity * item.price
+          })),
+          total: order.total
+      };
+
+      res.json({
+          success: true,
+          receipt: receiptData
+      });
+  } catch (error) {
+      res.status(500).json({
+          success: false,
+          message: "Error generating receipt"
+      });
+  }
+});
+
+// Add this payment endpoint
+app.post('/create-payment', fetchUser, async (req, res) => {
+  try {
+      const { cartItems } = req.body;
+      
+      // Calculate order total and create line items
+      const lineItems = [];
+      let totalAmount = 0;
+      
+      for (const [productId, quantity] of Object.entries(cartItems)) {
+          if (quantity > 0) {
+              const product = await Product.findOne({ id: parseInt(productId) });
+              if (product) {
+                  lineItems.push({
+                      price_data: {
+                          currency: 'usd',
+                          product_data: {
+                              name: product.name,
+                              images: [product.image]
+                          },
+                          unit_amount: Math.round(product.new_price * 100)
+                      },
+                      quantity: quantity
+                  });
+                  totalAmount += product.new_price * quantity;
+              }
+          }
+      }
+
+      // Create Stripe checkout session
+      const session = await stripe.checkout.sessions.create({
+          payment_method_types: ['card'],
+          line_items: lineItems,
+          mode: 'payment',
+          success_url: `${process.env.FRONTEND_URL}/order-success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.FRONTEND_URL}/cart`,
+          metadata: {
+              userId: req.user.id
+          }
+      });
+
+      // Create order in database
+      const order = new Order({
+          userId: req.user.id,
+          products: lineItems.map(item => ({
+              productId: item.price_data.product_data.name,
+              quantity: item.quantity,
+              name: item.price_data.product_data.name,
+              price: item.price_data.unit_amount / 100
+          })),
+          total: totalAmount,
+          stripePaymentId: session.id
+      });
+      await order.save();
+
+      res.json({ url: session.url });
+  } catch (error) {
+      console.error('Payment error:', error);
+      res.status(500).json({ error: 'Payment failed' });
   }
 });
 
