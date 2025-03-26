@@ -1,19 +1,17 @@
-import React from 'react'
+import React from 'react';
+import { Outlet } from 'react-router-dom';
 import "./Admin.css";
-import Sidebar from '../../Compenents/Sidebar/Sidebar';
-import AddProduct from '../../Compenents/AddProduct/AddProduct';
-import ListProduct from '../../Compenents/ListProduct/ListProduct';
-import { Routes,Route } from 'react-router-dom';
+import Sidebar from '../../Components/Sidebar/Sidebar';
+
 const Admin = () => {
-  return (
-    <div className='admin'>
-      <Sidebar/>
-      <Routes>
-        <Route path='/addproduct' element={<AddProduct/>}/>
-        <Route path='/listproduct' element={<ListProduct/>}/>
-      </Routes>
-    </div>
-  );
+    return (
+        <div className='admin'>
+            <Sidebar />
+            <div className="admin-content">
+                <Outlet />
+            </div>
+        </div>
+    );
 }
 
 export default Admin;

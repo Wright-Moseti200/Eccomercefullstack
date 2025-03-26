@@ -1,8 +1,10 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminAuth from './Components/Auth/AdminAuth';
-import Admin from './Comp/Admin/Admin.jsx'
-import Orders from './Components/Orders/Orders.jsx';
+import Admin from './Pages/Admin/Admin';
+import Orders from './Components/Orders/Orders';
+import AddProduct from './Components/AddProduct/AddProduct';
+import ListProduct from './Components/ListProduct/ListProduct';
 const ProtectedRoute = ({ children }) => {
     const isAuthenticated = localStorage.getItem('admin-token');
     if (!isAuthenticated) {
@@ -15,14 +17,18 @@ function App() {
     return (
         <Routes>
             <Route path="/admin/auth" element={<AdminAuth />} />
-            <Route path="/admin/*" element={
+            <Route path="/admin" element={
                 <ProtectedRoute>
                     <Admin />
                 </ProtectedRoute>
-            } />
+            }>
+                <Route index element={<Orders />} />
+                <Route path="dashboard" element={<Orders />} />
+                <Route path="orders" element={<Orders />} />
+                <Route path="addproduct" element={<AddProduct />} />
+                <Route path="listproduct" element={<ListProduct />} />
+            </Route>
             <Route path="/" element={<Navigate to="/admin/auth" replace />} />
-            <Route path="dashboard" element={<Orders />} />
-            <Route path="orders" element={<Orders />} />
         </Routes>
     );
 }
