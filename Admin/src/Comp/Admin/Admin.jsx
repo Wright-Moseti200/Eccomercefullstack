@@ -4,7 +4,7 @@ import Sidebar from '../Sidebar/Sidebar';
 import AddProduct from '../AddProduct/AddProduct';
 import ListProduct from '../ListProduct/ListProduct';
 import { Routes,Route } from 'react-router-dom';
-import Orders from '../../Components/Orders/Orders';
+import Orders from '../Orders/Orders';
 import Navbar from '../Navbar/Navbar';
 const Admin = () => {
   return (
