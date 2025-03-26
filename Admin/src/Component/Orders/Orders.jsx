@@ -11,11 +11,7 @@ const Orders = () => {
 
     const fetchOrders = async () => {
         try {
-            const response = await fetch('https://eccomercebackend-u1ce.onrender.com/admin/orders', {
-                headers: {
-                    'auth-token': localStorage.getItem('admin-token')
-                }
-            });
+            const response = await fetch('http://localhost:4000/admin/orders');
             const data = await response.json();
             setOrders(data);
             setLoading(false);
@@ -27,13 +23,8 @@ const Orders = () => {
 
     const generateReceipt = async (orderId) => {
         try {
-            const response = await fetch(`https://eccomercebackend-u1ce.onrender.com/admin/orders/${orderId}/receipt`, {
-                headers: {
-                    'auth-token': localStorage.getItem('admin-token')
-                }
-            });
+            const response = await fetch(`http://localhost:4000/admin/orders/${orderId}/receipt`);
             const receipt = await response.json();
-            // Create and download PDF receipt
             printReceipt(receipt);
         } catch (error) {
             console.error('Error generating receipt:', error);
