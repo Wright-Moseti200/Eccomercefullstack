@@ -11,7 +11,7 @@ const Orders = () => {
 
     const fetchOrders = async () => {
         try {
-            const response = await fetch('http://localhost:4000/admin/orders');
+            const response = await fetch('https://eccomercebackend-u1ce.onrender.com/admin/orders');
             const data = await response.json();
             setOrders(data);
             setLoading(false);
@@ -23,7 +23,7 @@ const Orders = () => {
 
     const generateReceipt = async (orderId) => {
         try {
-            const response = await fetch(`http://localhost:4000/admin/orders/${orderId}/receipt`);
+            const response = await fetch(`https://eccomercebackend-u1ce.onrender.com/admin/orders/${orderId}/receipt`);
             const receipt = await response.json();
             printReceipt(receipt);
         } catch (error) {
