@@ -398,6 +398,128 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'build', 'index.html'));
 });
 
+// Admin Schema
+const Admin = mongoose.model('Admin', {
+    email: {
+        type: String,
+        required: true,
+        unique: true
+    },
+    password: {
+        type: String,
+        required: true
+    },
+    isAdmin: {
+        type: Boolean,
+        default: true
+    }
+});
+
+// Admin signup endpoint
+app.post('/admin/signup', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Check if admin already exists
+        const existingAdmin = await Admin.findOne({ email });
+        if (existingAdmin) {
+            return res.status(400).json({
+                success: false,
+                message: 'Admin already exists'
+            });
+        }
+
+        // Create new admin
+        const admin = new Admin({
+            email,
+            password // In production, hash this password
+        });
+
+        await admin.save();
+
+        // Generate token
+        const token = jwt.sign(
+            { id: admin._id, isAdmin: true },
+            'secret_ecom',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            token
+        });
+    } catch (error) {
+        console.error('Admin signup error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error creating admin account'
+        });
+    }
+});
+
+// Admin login endpoint
+app.post('/admin/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // Find admin
+        const admin = await Admin.findOne({ email });
+        if (!admin) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Check password
+        if (password !== admin.password) { // In production, use proper password comparison
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid credentials'
+            });
+        }
+
+        // Generate token
+        const token = jwt.sign(
+            { id: admin._id, isAdmin: true },
+            'secret_ecom',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            success: true,
+            token
+        });
+    } catch (error) {
+        console.error('Admin login error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Login failed'
+        });
+    }
+});
+
+// Admin middleware
+const adminAuth = async (req, res, next) => {
+    try {
+        const token = req.header('auth-token');
+        if (!token) {
+            return res.status(401).json({ error: 'Access denied' });
+        }
+
+        const verified = jwt.verify(token, 'secret_ecom');
+        const admin = await Admin.findById(verified.id);
+        if (!admin || !admin.isAdmin) {
+            return res.status(403).json({ error: 'Not authorized' });
+        }
+
+        req.admin = admin;
+        next();
+    } catch (error) {
+        res.status(401).json({ error: 'Invalid token' });
+    }
+};
+
 app.listen(port,(error)=>
     {
         if(error)
