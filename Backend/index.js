@@ -520,6 +520,164 @@ const adminAuth = async (req, res, next) => {
     }
 };
 
+// Add Order Schema after existing schemas
+const orderSchema = new mongoose.Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    products: [{
+        productId: Number,
+        name: String,
+        quantity: Number,
+        price: Number,
+        image: String
+    }],
+    total: {
+        type: Number,
+        required: true
+    },
+    status: {
+        type: String,
+        default: 'completed'
+    },
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const Order = mongoose.model('Order', orderSchema);
+
+// Add these endpoints after your existing endpoints
+
+// Endpoint to create order after successful payment
+app.post('/create-order', fetchUser, async (req, res) => {
+    try {
+        const { cartItems } = req.body;
+        let total = 0;
+        const orderProducts = [];
+
+        // Get user data
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        // Create order items from cart
+        for (const [productId, quantity] of Object.entries(cartItems)) {
+            if (quantity > 0) {
+                const product = await Product.findOne({ id: parseInt(productId) });
+                if (product) {
+                    orderProducts.push({
+                        productId: product.id,
+                        name: product.name,
+                        quantity: quantity,
+                        price: product.new_price,
+                        image: product.image
+                    });
+                    total += product.new_price * quantity;
+                }
+            }
+        }
+
+        // Create new order
+        const order = new Order({
+            userId: user._id,
+            products: orderProducts,
+            total: total
+        });
+
+        await order.save();
+
+        // Clear user's cart
+        const emptyCart = {};
+        for (let i = 0; i < 300; i++) {
+            emptyCart[i] = 0;
+        }
+        await User.findByIdAndUpdate(user._id, { cartData: emptyCart });
+
+        res.json({ success: true, orderId: order._id });
+    } catch (error) {
+        console.error('Order creation error:', error);
+        res.status(500).json({ error: 'Failed to create order' });
+    }
+});
+
+// Endpoint to get all orders (admin)
+app.get('/admin/orders', async (req, res) => {
+    try {
+        const orders = await Order.find()
+            .populate('userId', 'name email')
+            .sort({ createdAt: -1 });
+        res.json(orders);
+    } catch (error) {
+        console.error('Error fetching orders:', error);
+        res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+});
+
+// Endpoint to get order receipt
+app.get('/admin/orders/:orderId/receipt', async (req, res) => {
+    try {
+        const order = await Order.findById(req.params.orderId)
+            .populate('userId', 'name email');
+        
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const receipt = {
+            orderNumber: order._id,
+            date: order.createdAt,
+            customer: {
+                name: order.userId.name,
+                email: order.userId.email
+            },
+            items: order.products,
+            total: order.total
+        };
+
+        res.json(receipt);
+    } catch (error) {
+        console.error('Error generating receipt:', error);
+        res.status(500).json({ error: 'Failed to generate receipt' });
+    }
+});
+
+// Update your payment success webhook to create order
+app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+    try {
+        const event = req.body;
+        
+        if (event.type === 'checkout.session.completed') {
+            const session = event.data.object;
+            
+            // Create order for the successful payment
+            const response = await fetch('http://localhost:4000/create-order', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': session.metadata.auth_token
+                },
+                body: JSON.stringify({
+                    cartItems: JSON.parse(session.metadata.cartItems)
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create order');
+            }
+        }
+
+        res.json({ received: true });
+    } catch (error) {
+        console.error('Webhook error:', error);
+        res.status(500).end();
+    }
+});
+
 app.listen(port,(error)=>
     {
         if(error)
