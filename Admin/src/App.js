@@ -3,8 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import AdminAuth from './Components/Auth/AdminAuth';
 import Admin from './Pages/Admin/Admin';
 import Orders from './Components/Orders/Orders';
-import AddProduct from './Components/AddProduct/AddProduct';
-import ListProduct from './Components/ListProduct/ListProduct';
+import AddProduct from './Comp/AddProduct/AddProduct';
+import ListProduct from './Comp/ListProduct/ListProduct';
+
 const ProtectedRoute = ({ children }) => {
     const isAuthenticated = localStorage.getItem('admin-token');
     if (!isAuthenticated) {
