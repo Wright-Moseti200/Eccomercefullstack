@@ -15,21 +15,23 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
     return (
-        <Routes>
-            <Route path="/admin/auth" element={<AdminAuth />} />
-            <Route path="/admin" element={
-                <ProtectedRoute>
-                    <Admin />
-                </ProtectedRoute>
-            }>
-                <Route index element={<Orders />} />
-                <Route path="dashboard" element={<Orders />} />
-                <Route path="orders" element={<Orders />} />
-                <Route path="addproduct" element={<AddProduct />} />
-                <Route path="listproduct" element={<ListProduct />} />
-            </Route>
-            <Route path="/" element={<Navigate to="/admin/auth" replace />} />
-        </Routes>
+        <div className="app">
+            <Routes>
+                <Route path="/admin/auth" element={<AdminAuth />} />
+                <Route path="/admin" element={
+                    <ProtectedRoute>
+                        <Admin />
+                    </ProtectedRoute>
+                }>
+                    <Route index element={<Orders />} />
+                    <Route path="dashboard" element={<Orders />} />
+                    <Route path="orders" element={<Orders />} />
+                    <Route path="addproduct" element={<AddProduct />} />
+                    <Route path="listproduct" element={<ListProduct />} />
+                </Route>
+                <Route path="/" element={<Navigate to="/admin/auth" replace />} />
+            </Routes>
+        </div>
     );
 }
 
