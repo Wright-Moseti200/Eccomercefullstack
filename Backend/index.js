@@ -308,168 +308,54 @@ const user = new User({
           res.json(userData.cartData);
         })
 
-// Add M-Pesa credentials
-const MPESA_CONFIGS = {
-    ACCESS_TOKEN: 'c9SQxWWhmdVRlyh0zh8gZDTkubVF',
-    SHORTCODE: '601426',
+// Replace existing M-Pesa config with new one
+const MPESA_CONFIG = {
+    CONSUMER_KEY: '9SurPAHWbEGr2V7UiO6V87B0VjbhAXu5wKOMSO3SacICTgeV',
+    CONSUMER_SECRET: '7A1Q7SviK0RueVAev49lqo8e1LLyvp4JUjGZ1khcAeDBGYbcAW3U5ArngfpAJEq8',
+    SHORTCODE: '174379',
     PASSKEY: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
     BASE_URL: 'https://sandbox.safaricom.co.ke',
     CALLBACK_URL: 'https://eccomercebackend-u1ce.onrender.com/mpesa-callback'
 };
 
-// Helper function to generate timestamp
-const generateTimestamp = () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
+// Add utility functions
+function generateTimestamp() {
+    const date = new Date();
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const seconds = String(date.getSeconds()).padStart(2, '0');
     return `${year}${month}${day}${hours}${minutes}${seconds}`;
-};
+}
 
-// Add M-Pesa payment endpoint
-app.post('/initiate-payment', fetchUser, async (req, res) => {
-    try {
-        const { phoneNumber, amount, cartItems } = req.body;
+function generatePassword(shortcode, passkey, timestamp) {
+    const combinedString = `${shortcode}${passkey}${timestamp}`;
+    return Buffer.from(combinedString).toString('base64');
+}
 
-        if (!phoneNumber || !amount) {
-            return res.status(400).json({ error: 'Phone number and amount are required' });
-        }
-
-        // Validate phone number
-        const formattedPhone = phoneNumber.replace(/^0/, '254').replace(/^\+/, '');
-        if (!/^254\d{9}$/.test(formattedPhone)) {
-            return res.status(400).json({ error: 'Invalid phone number format. Use format 07XXXXXXXX' });
-        }
-
-        const timestamp = generateTimestamp();
-        const password = Buffer.from(`${MPESA_CONFIGS.SHORTCODE}${MPESA_CONFIGS.PASSKEY}${timestamp}`).toString('base64');
-
-        // Initiate STK Push using fetch
-        const response = await fetch(`${MPESA_CONFIGS.BASE_URL}/mpesa/stkpush/v1/processrequest`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${MPESA_CONFIGS.ACCESS_TOKEN}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                BusinessShortCode: MPESA_CONFIGS.SHORTCODE,
-                Password: password,
-                Timestamp: timestamp,
-                TransactionType: 'CustomerPayBillOnline',
-                Amount: Math.round(amount),
-                PartyA: formattedPhone,
-                PartyB: MPESA_CONFIGS.SHORTCODE,
-                PhoneNumber: formattedPhone,
-                CallBackURL: MPESA_CONFIGS.CALLBACK_URL,
-                AccountReference: `Order_${Date.now()}`,
-                TransactionDesc: 'Payment for order'
-            })
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-
-        if (!data.CheckoutRequestID) {
-            throw new Error('Invalid response from M-Pesa');
-        }
-
-        // Save payment request
-        const payment = new Payment({
-            userId: req.user.id,
-            phoneNumber: formattedPhone,
-            amount: amount,
-            mpesaRequestId: data.CheckoutRequestID,
-            cartItems: cartItems
-        });
-        await payment.save();
-
-        res.json({
-            success: true,
-            message: 'Payment request sent. Please check your phone.',
-            checkoutRequestId: data.CheckoutRequestID
-        });
-
-    } catch (error) {
-        console.error('M-Pesa payment error:', error);
-        res.status(500).json({ 
-            error: 'Payment initiation failed',
-            details: error.message
-        });
-    }
-});
-
-// Add M-Pesa callback endpoint
-app.post('/mpesa-callback', async (req, res) => {
-    console.log('Received M-Pesa callback:', req.body);
+// Add access token generation
+async function getAccessToken() {
+    const auth = Buffer.from(`${MPESA_CONFIG.CONSUMER_KEY}:${MPESA_CONFIG.CONSUMER_SECRET}`).toString('base64');
     
     try {
-        const { Body: { stkCallback } } = req.body;
-        
-        if (!stkCallback) {
-            throw new Error('Invalid callback data');
-        }
-
-        const { CheckoutRequestID, ResultCode, ResultDesc } = stkCallback;
-
-        const payment = await Payment.findOne({ mpesaRequestId: CheckoutRequestID });
-        if (!payment) {
-            console.error('Payment not found for CheckoutRequestID:', CheckoutRequestID);
-            return res.status(404).json({ error: 'Payment not found' });
-        }
-
-        payment.resultCode = ResultCode;
-        payment.resultDesc = ResultDesc;
-
-        if (ResultCode === 0) {
-            payment.status = 'completed';
-            
-            // Clear user's cart
-            const emptyCart = {};
-            for (let i = 0; i < 300; i++) {
-                emptyCart[i] = 0;
+        const response = await fetch(`${MPESA_CONFIG.BASE_URL}/oauth/v1/generate?grant_type=client_credentials`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Basic ${auth}`
             }
-            await User.findByIdAndUpdate(payment.userId, { cartData: emptyCart });
-        } else {
-            payment.status = 'failed';
-        }
-
-        await payment.save();
-        res.json({ success: true });
-    } catch (error) {
-        console.error('M-Pesa callback error:', error);
-        res.status(500).json({ error: 'Callback processing failed' });
-    }
-});
-
-// Add status check endpoint
-app.get('/payment-status/:checkoutRequestId', fetchUser, async (req, res) => {
-    try {
-        const payment = await Payment.findOne({ 
-            mpesaRequestId: req.params.checkoutRequestId,
-            userId: req.user.id 
         });
 
-        if (!payment) {
-            return res.status(404).json({ error: 'Payment not found' });
-        }
-
-        res.json({
-            status: payment.status,
-            resultDesc: payment.resultDesc
-        });
+        const data = await response.json();
+        return data.access_token;
     } catch (error) {
-        console.error('Payment status check error:', error);
-        res.status(500).json({ error: 'Failed to check payment status' });
+        console.error('Access Token Error:', error);
+        throw error;
     }
-});
+}
 
-// Add Payment Schema if not already present
+// Update Payment Schema
 const PaymentSchema = new mongoose.Schema({
     userId: {
         type: mongoose.Schema.Types.ObjectId,
@@ -504,6 +390,134 @@ const PaymentSchema = new mongoose.Schema({
 });
 
 const Payment = mongoose.model('Payment', PaymentSchema);
+
+// Update initiate-payment endpoint
+app.post('/initiate-payment', fetchUser, async (req, res) => {
+    try {
+        const { phoneNumber, amount } = req.body;
+        const formattedPhone = phoneNumber.replace(/^0/, '254');
+        
+        const timestamp = generateTimestamp();
+        const password = generatePassword(
+            MPESA_CONFIG.SHORTCODE, 
+            MPESA_CONFIG.PASSKEY, 
+            timestamp
+        );
+
+        const accessToken = await getAccessToken();
+
+        const response = await fetch(`${MPESA_CONFIG.BASE_URL}/mpesa/stkpush/v1/processrequest`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                BusinessShortCode: MPESA_CONFIG.SHORTCODE,
+                Password: password,
+                Timestamp: timestamp,
+                TransactionType: 'CustomerPayBillOnline',
+                Amount: Math.round(amount),
+                PartyA: formattedPhone,
+                PartyB: MPESA_CONFIG.SHORTCODE,
+                PhoneNumber: formattedPhone,
+                CallBackURL: MPESA_CONFIG.CALLBACK_URL,
+                AccountReference: `Order_${Date.now()}`,
+                TransactionDesc: 'Payment for order'
+            })
+        });
+
+        const data = await response.json();
+
+        const payment = new Payment({
+            userId: req.user.id,
+            phoneNumber: formattedPhone,
+            amount: amount,
+            mpesaRequestId: data.CheckoutRequestID,
+            status: 'pending'
+        });
+        await payment.save();
+
+        res.json({
+            success: true,
+            message: 'Payment request sent. Please check your phone.',
+            checkoutRequestId: data.CheckoutRequestID
+        });
+
+    } catch (error) {
+        console.error('M-Pesa Payment Error:', error);
+        res.status(500).json({ 
+            error: 'Payment initiation failed',
+            details: error.message
+        });
+    }
+});
+
+// Update callback endpoint
+app.post('/mpesa-callback', async (req, res) => {
+    try {
+        const { Body } = req.body;
+        
+        if (!Body || !Body.stkCallback) {
+            return res.status(400).json({ error: 'Invalid callback data' });
+        }
+
+        const { 
+            CheckoutRequestID, 
+            ResultCode, 
+            ResultDesc,
+            CallbackMetadata 
+        } = Body.stkCallback;
+
+        const payment = await Payment.findOne({ mpesaRequestId: CheckoutRequestID });
+        
+        if (!payment) {
+            return res.status(404).json({ error: 'Payment not found' });
+        }
+
+        payment.status = ResultCode === 0 ? 'completed' : 'failed';
+        payment.resultCode = ResultCode;
+        payment.resultDesc = ResultDesc;
+
+        if (ResultCode === 0 && CallbackMetadata) {
+            const transactionDetails = CallbackMetadata.Item.reduce((acc, item) => {
+                acc[item.Name] = item.Value;
+                return acc;
+            }, {});
+
+            payment.transactionId = transactionDetails.MpesaReceiptNumber;
+        }
+
+        await payment.save();
+        res.json({ ResultCode: 0, ResultDesc: 'Success' });
+
+    } catch (error) {
+        console.error('Callback Processing Error:', error);
+        res.status(500).json({ ResultCode: 1, ResultDesc: 'Failed' });
+    }
+});
+
+// Add status check endpoint
+app.get('/payment-status/:checkoutRequestId', fetchUser, async (req, res) => {
+    try {
+        const payment = await Payment.findOne({ 
+            mpesaRequestId: req.params.checkoutRequestId,
+            userId: req.user.id 
+        });
+
+        if (!payment) {
+            return res.status(404).json({ error: 'Payment not found' });
+        }
+
+        res.json({
+            status: payment.status,
+            resultDesc: payment.resultDesc
+        });
+    } catch (error) {
+        console.error('Payment status check error:', error);
+        res.status(500).json({ error: 'Failed to check payment status' });
+    }
+});
 
 app.listen(port,(error)=>
     {
