@@ -6,8 +6,52 @@ import { ShopContext } from '../shopcontext';
 import remove_icon from "../Assets/cart_cross_icon.png";
 
 const CartItems = () => {
-    const { all_product, cartItems, removeFromCart, getTotalCartAmount, handleCheckout } = useContext(ShopContext);
-   
+    const { all_product, cartItems, removeFromCart, getTotalCartAmount } = useContext(ShopContext);
+    const [loading, setLoading] = useState(false);
+
+    const handleCheckout = async () => {
+        if (!localStorage.getItem('auth-token')) {
+            alert('Please login to checkout');
+            return;
+        }
+
+        // Get phone number from user
+        const phoneNumber = prompt('Enter your M-Pesa phone number (e.g., 0712345678):');
+        if (!phoneNumber) return;
+
+        try {
+            setLoading(true);
+            const response = await fetch('https://eccomercebackend-u1ce.onrender.com/initiate-payment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'auth-token': localStorage.getItem('auth-token')
+                },
+                body: JSON.stringify({
+                    phoneNumber,
+                    amount: getTotalCartAmount(),
+                    cartItems
+                })
+            });
+
+            const data = await response.json();
+            if (data.error) {
+                alert(data.error);
+            } else {
+                alert('Please check your phone for the M-Pesa payment prompt');
+                // Optionally redirect to a payment status page
+                // navigate('/payment-status');
+            }
+        } catch (error) {
+            console.error('Checkout error:', error);
+            alert('Checkout failed. Please try again.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const buttonText = loading ? 'Processing...' : 'PROCEED TO CHECKOUT';
+
     return (
         <div className='cartitems'>
             <div className='cartitems-format-main'>
@@ -64,9 +108,9 @@ const CartItems = () => {
                     <button 
                         onClick={handleCheckout} 
                         className="checkout-button"
-                        disabled={getTotalCartAmount() <= 0}
+                        disabled={loading || getTotalCartAmount() <= 0}
                     >
-                        PROCEED TO CHECKOUT
+                        {buttonText}
                     </button>
                 </div>
                 <div className='cartitems-promocode'>

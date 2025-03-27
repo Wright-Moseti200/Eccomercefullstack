@@ -9,6 +9,7 @@ const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
+
 app.use(express.json());
 app.use(cors());
 
@@ -309,11 +310,13 @@ const user = new User({
         })
 
 // Add M-Pesa credentials
-const MPESA_CONSUMER_KEY = 'your_consumer_key';
-const MPESA_CONSUMER_SECRET = 'your_consumer_secret';
-const MPESA_PASSKEY = 'your_passkey';
-const MPESA_SHORTCODE = 'your_shortcode';
-const MPESA_CALLBACK_URL = 'https://eccomercebackend-u1ce.onrender.com/mpesa-callback';
+const MPESA_CONFIGS = {
+    ACCESS_TOKEN: 'c9SQxWWhmdVRlyh0zh8gZDTkubVF',
+    SHORTCODE: '601426',
+    PASSKEY: 'bfb279f9aa9bdbcf158e97dd71a467cd2e0c893059b10f78e6b72ada1ed2c919',
+    BASE_URL: 'https://sandbox.safaricom.co.ke',
+    CALLBACK_URL: 'https://eccomercebackend-u1ce.onrender.com/mpesa-callback'
+};
 
 // Add M-Pesa payment endpoint
 app.post('/initiate-payment', fetchUser, async (req, res) => {
@@ -326,55 +329,50 @@ app.post('/initiate-payment', fetchUser, async (req, res) => {
             return res.status(400).json({ error: 'Invalid phone number format' });
         }
 
-        // Get OAuth token
-        const auth = Buffer.from(`${MPESA_CONSUMER_KEY}:${MPESA_CONSUMER_SECRET}`).toString('base64');
-        const tokenResponse = await axios.get(
-            'https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials',
-            {
-                headers: { Authorization: `Basic ${auth}` }
-            }
-        );
-
         const timestamp = moment().format('YYYYMMDDHHmmss');
-        const password = Buffer.from(`${MPESA_SHORTCODE}${MPESA_PASSKEY}${timestamp}`).toString('base64');
+        const password = Buffer.from(`${MPESA_CONFIGS.SHORTCODE}${MPESA_CONFIGS.PASSKEY}${timestamp}`).toString('base64');
 
-        // Initiate STK Push
+        // Initiate STK Push using the provided access token
         const stkResponse = await axios.post(
-            'https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest',
+            `${MPESA_CONFIGS.BASE_URL}/mpesa/stkpush/v1/processrequest`,
             {
-                BusinessShortCode: MPESA_SHORTCODE,
+                BusinessShortCode: MPESA_CONFIGS.SHORTCODE,
                 Password: password,
                 Timestamp: timestamp,
                 TransactionType: 'CustomerPayBillOnline',
                 Amount: Math.round(amount),
                 PartyA: formattedPhone,
-                PartyB: MPESA_SHORTCODE,
+                PartyB: MPESA_CONFIGS.SHORTCODE,
                 PhoneNumber: formattedPhone,
-                CallBackURL: MPESA_CALLBACK_URL,
+                CallBackURL: MPESA_CONFIGS.CALLBACK_URL,
                 AccountReference: `Order_${Date.now()}`,
                 TransactionDesc: 'Payment for order'
             },
             {
                 headers: {
-                    Authorization: `Bearer ${tokenResponse.data.access_token}`
+                    Authorization: `Bearer ${MPESA_CONFIGS.ACCESS_TOKEN}`
                 }
             }
         );
 
-        // After successful payment, clear cart
-        const emptyCart = {};
-        for (let i = 0; i < 300; i++) {
-            emptyCart[i] = 0;
-        }
-        await User.findByIdAndUpdate(req.user.id, { cartData: emptyCart });
+        // Save payment request
+        const payment = new Payment({
+            userId: req.user.id,
+            phoneNumber: formattedPhone,
+            amount: amount,
+            mpesaRequestId: stkResponse.data.CheckoutRequestID,
+            cartItems: cartItems
+        });
+        await payment.save();
 
         res.json({
             success: true,
-            message: 'Payment request sent. Please check your phone.'
+            message: 'Payment request sent. Please check your phone.',
+            checkoutRequestId: stkResponse.data.CheckoutRequestID
         });
 
     } catch (error) {
-        console.error('M-Pesa payment error:', error);
+        console.error('M-Pesa payment error:', error?.response?.data || error.message);
         res.status(500).json({ error: 'Payment initiation failed' });
     }
 });
@@ -412,6 +410,42 @@ app.post('/mpesa-callback', async (req, res) => {
         res.status(500).json({ error: 'Callback processing failed' });
     }
 });
+
+// Add Payment Schema if not already present
+const PaymentSchema = new mongoose.Schema({
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+    },
+    phoneNumber: {
+        type: String,
+        required: true
+    },
+    amount: {
+        type: Number,
+        required: true
+    },
+    mpesaRequestId: {
+        type: String,
+        required: true
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'completed', 'failed'],
+        default: 'pending'
+    },
+    transactionId: String,
+    resultCode: String,
+    resultDesc: String,
+    cartItems: Object,
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+const Payment = mongoose.model('Payment', PaymentSchema);
 
 app.listen(port,(error)=>
     {
