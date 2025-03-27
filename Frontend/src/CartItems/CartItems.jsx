@@ -1,5 +1,5 @@
 /* eslint-disable array-callback-return */
-import { useContext, useState } from 'react';
+import { useContext, useState, useEffect } from 'react';
 import React from 'react';
 import "./CartItems.css";
 import { ShopContext } from '../shopcontext';
@@ -10,15 +10,24 @@ const CartItems = () => {
     const [loading, setLoading] = useState(false);
     const [paymentStatus, setPaymentStatus] = useState(null);
 
+    const validatePhoneNumber = (phone) => {
+        const regex = /^(0|254|\+254)?[7][0-9]{8}$/;
+        return regex.test(phone);
+    };
+
     const handleCheckout = async () => {
         if (!localStorage.getItem('auth-token')) {
             alert('Please login to checkout');
             return;
         }
 
-        // Get phone number from user
         const phoneNumber = prompt('Enter your M-Pesa phone number (e.g., 0712345678):');
         if (!phoneNumber) return;
+
+        if (!validatePhoneNumber(phoneNumber)) {
+            alert('Invalid phone number format. Please use format 07XXXXXXXX');
+            return;
+        }
 
         try {
             setLoading(true);
@@ -38,46 +47,57 @@ const CartItems = () => {
             });
 
             const data = await response.json();
-            
-            if (data.error) {
-                setPaymentStatus('failed');
-                alert(data.error);
-            } else {
-                setPaymentStatus('pending');
-                alert(data.message);
-                if (data.checkoutRequestId) {
-                    checkPaymentStatus(data.checkoutRequestId);
-                }
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Payment initiation failed');
             }
+
+            if (data.checkoutRequestId) {
+                setPaymentStatus('pending');
+                alert('Please check your phone for the M-Pesa prompt');
+                startPaymentStatusCheck(data.checkoutRequestId);
+            }
+
         } catch (error) {
             console.error('Checkout error:', error);
             setPaymentStatus('failed');
-            alert('Checkout failed. Please try again.');
+            alert(error.message || 'Checkout failed. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const checkPaymentStatus = async (checkoutRequestId) => {
-        try {
-            const response = await fetch(`https://eccomercebackend-u1ce.onrender.com/payment-status/${checkoutRequestId}`, {
-                headers: {
-                    'auth-token': localStorage.getItem('auth-token')
-                }
-            });
-            const data = await response.json();
+    const startPaymentStatusCheck = (checkoutRequestId) => {
+        let attempts = 0;
+        const maxAttempts = 20;
+        const interval = setInterval(async () => {
+            try {
+                const response = await fetch(
+                    `https://eccomercebackend-u1ce.onrender.com/payment-status/${checkoutRequestId}`,
+                    {
+                        headers: {
+                            'auth-token': localStorage.getItem('auth-token')
+                        }
+                    }
+                );
 
-            if (data.status === 'completed') {
-                setPaymentStatus('completed');
-                alert('Payment successful! Thank you for your purchase.');
-                window.location.reload(); // Refresh to show empty cart
-            } else if (data.status === 'failed') {
-                setPaymentStatus('failed');
-                alert('Payment failed. Please try again.');
+                const data = await response.json();
+
+                if (data.status === 'completed') {
+                    clearInterval(interval);
+                    setPaymentStatus('completed');
+                    alert('Payment successful! Thank you for your purchase.');
+                    window.location.reload();
+                } else if (data.status === 'failed' || attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    setPaymentStatus('failed');
+                    alert('Payment failed or timed out. Please try again.');
+                }
+                attempts++;
+            } catch (error) {
+                console.error('Status check error:', error);
             }
-        } catch (error) {
-            console.error('Status check error:', error);
-        }
+        }, 5000);
     };
 
     const getButtonText = () => {
