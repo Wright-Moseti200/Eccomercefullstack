@@ -8,8 +8,6 @@ const path = require('path');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-const axios = require('axios');
-const moment = require('moment');
 
 app.use(express.json());
 app.use(cors());
