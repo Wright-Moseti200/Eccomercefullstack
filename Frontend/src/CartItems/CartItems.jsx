@@ -8,6 +8,7 @@ import remove_icon from "../Assets/cart_cross_icon.png";
 const CartItems = () => {
     const { all_product, cartItems, removeFromCart, getTotalCartAmount } = useContext(ShopContext);
     const [loading, setLoading] = useState(false);
+    const [paymentStatus, setPaymentStatus] = useState(null);
 
     const handleCheckout = async () => {
         if (!localStorage.getItem('auth-token')) {
@@ -21,6 +22,8 @@ const CartItems = () => {
 
         try {
             setLoading(true);
+            setPaymentStatus('initiating');
+
             const response = await fetch('https://eccomercebackend-u1ce.onrender.com/initiate-payment', {
                 method: 'POST',
                 headers: {
@@ -35,22 +38,63 @@ const CartItems = () => {
             });
 
             const data = await response.json();
+            
             if (data.error) {
+                setPaymentStatus('failed');
                 alert(data.error);
             } else {
-                alert('Please check your phone for the M-Pesa payment prompt');
-                // Optionally redirect to a payment status page
-                // navigate('/payment-status');
+                setPaymentStatus('pending');
+                alert(data.message);
+                if (data.checkoutRequestId) {
+                    checkPaymentStatus(data.checkoutRequestId);
+                }
             }
         } catch (error) {
             console.error('Checkout error:', error);
+            setPaymentStatus('failed');
             alert('Checkout failed. Please try again.');
         } finally {
             setLoading(false);
         }
     };
 
-    const buttonText = loading ? 'Processing...' : 'PROCEED TO CHECKOUT';
+    const checkPaymentStatus = async (checkoutRequestId) => {
+        try {
+            const response = await fetch(`https://eccomercebackend-u1ce.onrender.com/payment-status/${checkoutRequestId}`, {
+                headers: {
+                    'auth-token': localStorage.getItem('auth-token')
+                }
+            });
+            const data = await response.json();
+
+            if (data.status === 'completed') {
+                setPaymentStatus('completed');
+                alert('Payment successful! Thank you for your purchase.');
+                window.location.reload(); // Refresh to show empty cart
+            } else if (data.status === 'failed') {
+                setPaymentStatus('failed');
+                alert('Payment failed. Please try again.');
+            }
+        } catch (error) {
+            console.error('Status check error:', error);
+        }
+    };
+
+    const getButtonText = () => {
+        if (loading) return 'Processing...';
+        switch (paymentStatus) {
+            case 'initiating':
+                return 'Initiating Payment...';
+            case 'pending':
+                return 'Check your phone...';
+            case 'completed':
+                return 'Payment Successful!';
+            case 'failed':
+                return 'Try Again';
+            default:
+                return 'PROCEED TO CHECKOUT';
+        }
+    };
 
     return (
         <div className='cartitems'>
@@ -96,7 +140,7 @@ const CartItems = () => {
                         </div>
                         <hr/>
                         <div className='cartitems-total-item'>
-                            <p>Shipping fee</p>
+                            <p>Shipping Fee</p>
                             <p>Free</p>
                         </div>
                         <hr/>
@@ -106,11 +150,11 @@ const CartItems = () => {
                         </div>
                     </div>
                     <button 
-                        onClick={handleCheckout} 
-                        className="checkout-button"
+                        onClick={handleCheckout}
+                        className={`checkout-button ${paymentStatus}`}
                         disabled={loading || getTotalCartAmount() <= 0}
                     >
-                        {buttonText}
+                        {getButtonText()}
                     </button>
                 </div>
                 <div className='cartitems-promocode'>

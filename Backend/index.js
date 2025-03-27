@@ -8,7 +8,8 @@ const path = require('path');
 const cors = require('cors');
 const cloudinary = require('cloudinary').v2;
 const { CloudinaryStorage } = require('multer-storage-cloudinary');
-
+const axios = require('axios');
+const moment = require('moment');
 
 app.use(express.json());
 app.use(cors());
@@ -323,19 +324,34 @@ app.post('/initiate-payment', fetchUser, async (req, res) => {
     try {
         const { phoneNumber, amount, cartItems } = req.body;
 
-        // Validate phone number (should be Kenyan format)
+        if (!phoneNumber || !amount) {
+            return res.status(400).json({ error: 'Phone number and amount are required' });
+        }
+
+        // Validate phone number
         const formattedPhone = phoneNumber.replace(/^0/, '254').replace(/^\+/, '');
         if (!/^254\d{9}$/.test(formattedPhone)) {
-            return res.status(400).json({ error: 'Invalid phone number format' });
+            return res.status(400).json({ error: 'Invalid phone number format. Use format 07XXXXXXXX' });
         }
 
         const timestamp = moment().format('YYYYMMDDHHmmss');
         const password = Buffer.from(`${MPESA_CONFIGS.SHORTCODE}${MPESA_CONFIGS.PASSKEY}${timestamp}`).toString('base64');
 
-        // Initiate STK Push using the provided access token
-        const stkResponse = await axios.post(
-            `${MPESA_CONFIGS.BASE_URL}/mpesa/stkpush/v1/processrequest`,
-            {
+        console.log('Initiating STK push with:', {
+            phoneNumber: formattedPhone,
+            amount,
+            timestamp
+        });
+
+        // Initiate STK Push
+        const response = await axios({
+            method: 'post',
+            url: `${MPESA_CONFIGS.BASE_URL}/mpesa/stkpush/v1/processrequest`,
+            headers: {
+                'Authorization': `Bearer ${MPESA_CONFIGS.ACCESS_TOKEN}`,
+                'Content-Type': 'application/json'
+            },
+            data: {
                 BusinessShortCode: MPESA_CONFIGS.SHORTCODE,
                 Password: password,
                 Timestamp: timestamp,
@@ -347,20 +363,21 @@ app.post('/initiate-payment', fetchUser, async (req, res) => {
                 CallBackURL: MPESA_CONFIGS.CALLBACK_URL,
                 AccountReference: `Order_${Date.now()}`,
                 TransactionDesc: 'Payment for order'
-            },
-            {
-                headers: {
-                    Authorization: `Bearer ${MPESA_CONFIGS.ACCESS_TOKEN}`
-                }
             }
-        );
+        });
+
+        console.log('STK push response:', response.data);
+
+        if (!response.data.CheckoutRequestID) {
+            throw new Error('Invalid response from M-Pesa');
+        }
 
         // Save payment request
         const payment = new Payment({
             userId: req.user.id,
             phoneNumber: formattedPhone,
             amount: amount,
-            mpesaRequestId: stkResponse.data.CheckoutRequestID,
+            mpesaRequestId: response.data.CheckoutRequestID,
             cartItems: cartItems
         });
         await payment.save();
@@ -368,30 +385,48 @@ app.post('/initiate-payment', fetchUser, async (req, res) => {
         res.json({
             success: true,
             message: 'Payment request sent. Please check your phone.',
-            checkoutRequestId: stkResponse.data.CheckoutRequestID
+            checkoutRequestId: response.data.CheckoutRequestID
         });
 
     } catch (error) {
-        console.error('M-Pesa payment error:', error?.response?.data || error.message);
-        res.status(500).json({ error: 'Payment initiation failed' });
+        console.error('M-Pesa payment error:', {
+            message: error.message,
+            response: error.response?.data,
+            stack: error.stack
+        });
+
+        res.status(500).json({ 
+            error: 'Payment initiation failed',
+            details: error.response?.data?.errorMessage || error.message
+        });
     }
 });
 
 // Add M-Pesa callback endpoint
 app.post('/mpesa-callback', async (req, res) => {
+    console.log('Received M-Pesa callback:', req.body);
+    
     try {
-        const { Body: { stkCallback: { CheckoutRequestID, ResultCode, ResultDesc } } } = req.body;
+        const { Body: { stkCallback } } = req.body;
+        
+        if (!stkCallback) {
+            throw new Error('Invalid callback data');
+        }
+
+        const { CheckoutRequestID, ResultCode, ResultDesc } = stkCallback;
 
         const payment = await Payment.findOne({ mpesaRequestId: CheckoutRequestID });
         if (!payment) {
+            console.error('Payment not found for CheckoutRequestID:', CheckoutRequestID);
             return res.status(404).json({ error: 'Payment not found' });
         }
 
-        if (ResultCode === 0) {
-            // Payment successful
-            payment.status = 'completed';
-            await payment.save();
+        payment.resultCode = ResultCode;
+        payment.resultDesc = ResultDesc;
 
+        if (ResultCode === 0) {
+            payment.status = 'completed';
+            
             // Clear user's cart
             const emptyCart = {};
             for (let i = 0; i < 300; i++) {
@@ -400,9 +435,10 @@ app.post('/mpesa-callback', async (req, res) => {
             await User.findByIdAndUpdate(payment.userId, { cartData: emptyCart });
         } else {
             payment.status = 'failed';
-            payment.failureReason = ResultDesc;
-            await payment.save();
         }
+
+        await payment.save();
+        console.log('Payment updated:', payment);
 
         res.json({ success: true });
     } catch (error) {
