@@ -386,7 +386,17 @@ const PaymentSchema = new mongoose.Schema({
     createdAt: {
         type: Date,
         default: Date.now
+    },
+    updatedAt: {
+        type: Date,
+        default: Date.now
     }
+});
+
+// Add pre-save middleware to update the updatedAt field
+PaymentSchema.pre('save', function(next) {
+    this.updatedAt = new Date();
+    next();
 });
 
 const Payment = mongoose.model('Payment', PaymentSchema);
@@ -564,4 +574,3 @@ app.listen(port,(error)=>
             console.log("Server started on port",port);
         }
     });
-    
