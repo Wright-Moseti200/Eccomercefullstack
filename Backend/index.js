@@ -519,6 +519,40 @@ app.get('/payment-status/:checkoutRequestId', fetchUser, async (req, res) => {
     }
 });
 
+// Add admin orders endpoint
+app.get('/admin/orders', async (req, res) => {
+    try {
+        const orders = await Payment.aggregate([
+            {
+                $lookup: {
+                    from: 'users',
+                    localField: 'userId',
+                    foreignField: '_id',
+                    as: 'user'
+                }
+            },
+            {
+                $addFields: {
+                    userName: { $arrayElemAt: ['$user.name', 0] }
+                }
+            },
+            {
+                $project: {
+                    user: 0
+                }
+            },
+            {
+                $sort: { createdAt: -1 }
+            }
+        ]);
+
+        res.json(orders);
+    } catch (error) {
+        console.error('Error fetching orders:', error);
+        res.status(500).json({ error: 'Failed to fetch orders' });
+    }
+});
+
 app.listen(port,(error)=>
     {
         if(error)
@@ -530,3 +564,4 @@ app.listen(port,(error)=>
             console.log("Server started on port",port);
         }
     });
+    

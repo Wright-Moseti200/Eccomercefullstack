@@ -3,7 +3,6 @@ import './Orders.css';
 
 const Orders = () => {
     const [orders, setOrders] = useState([]);
-    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         fetchOrders();
@@ -14,98 +13,64 @@ const Orders = () => {
             const response = await fetch('https://eccomercebackend-u1ce.onrender.com/admin/orders');
             const data = await response.json();
             setOrders(data);
-            setLoading(false);
         } catch (error) {
             console.error('Error fetching orders:', error);
-            setLoading(false);
         }
     };
 
-    const generateReceipt = async (orderId) => {
-        try {
-            const response = await fetch(`https://eccomercebackend-u1ce.onrender.com/admin/orders/${orderId}/receipt`);
-            const receipt = await response.json();
-            printReceipt(receipt);
-        } catch (error) {
-            console.error('Error generating receipt:', error);
-        }
-    };
+    const generateReceipt = (order) => {
+        const receiptContent = `
+            RECEIPT
+            --------
+            Order ID: ${order.mpesaRequestId}
+            Customer: ${order.userName}
+            Phone: ${order.phoneNumber}
+            Amount: $${order.amount}
+            Date: ${new Date(order.createdAt).toLocaleString()}
+            Status: ${order.status}
+            Transaction ID: ${order.transactionId || 'Pending'}
+            
+            Items:
+            ${Object.entries(order.cartItems)
+                .filter(([_, quantity]) => quantity > 0)
+                .map(([productId, quantity]) => 
+                    `- ${quantity}x Product #${productId}`
+                ).join('\n')}
+        `;
 
-    const printReceipt = (receipt) => {
-        const receiptWindow = window.open('', '_blank');
-        receiptWindow.document.write(`
-            <html>
-                <head>
-                    <title>Order Receipt</title>
-                    <style>
-                        body { font-family: Arial; padding: 20px; }
-                        .receipt { max-width: 500px; margin: 0 auto; }
-                        .header { text-align: center; margin-bottom: 20px; }
-                        .items { margin: 20px 0; }
-                        .item { display: flex; justify-content: space-between; margin: 10px 0; }
-                        .total { text-align: right; font-weight: bold; margin-top: 20px; }
-                    </style>
-                </head>
-                <body>
-                    <div class="receipt">
-                        <div class="header">
-                            <h2>Order Receipt</h2>
-                            <p>Order #${receipt.orderNumber}</p>
-                            <p>Date: ${new Date(receipt.date).toLocaleString()}</p>
-                        </div>
-                        <div class="customer">
-                            <p>Customer: ${receipt.customer.name}</p>
-                            <p>Email: ${receipt.customer.email}</p>
-                        </div>
-                        <div class="items">
-                            ${receipt.items.map(item => `
-                                <div class="item">
-                                    <span>${item.name} x${item.quantity}</span>
-                                    <span>$${(item.price * item.quantity).toFixed(2)}</span>
-                                </div>
-                            `).join('')}
-                        </div>
-                        <div class="total">
-                            Total: $${receipt.total.toFixed(2)}
-                        </div>
-                    </div>
-                </body>
-            </html>
-        `);
-        receiptWindow.document.close();
-        receiptWindow.print();
+        // Create and trigger download
+        const element = document.createElement('a');
+        const file = new Blob([receiptContent], {type: 'text/plain'});
+        element.href = URL.createObjectURL(file);
+        element.download = `receipt_${order.mpesaRequestId}.txt`;
+        document.body.appendChild(element);
+        element.click();
+        document.body.removeChild(element);
     };
-
-    if (loading) {
-        return <div>Loading orders...</div>;
-    }
 
     return (
-        <div className="orders-container">
+        <div className="orders">
             <h2>Customer Orders</h2>
             <div className="orders-list">
-                {orders.map(order => (
-                    <div key={order._id} className="order-card">
+                {orders.map((order) => (
+                    <div key={order._id} className={`order-item ${order.status}`}>
                         <div className="order-header">
-                            <h3>Order #{order._id}</h3>
-                            <span>{new Date(order.createdAt).toLocaleDateString()}</span>
+                            <h3>Order #{order.mpesaRequestId}</h3>
+                            <span className={`status ${order.status}`}>
+                                {order.status}
+                            </span>
                         </div>
                         <div className="order-details">
-                            <p>Customer: {order.userId.name}</p>
-                            <p>Email: {order.userId.email}</p>
-                            <div className="order-items">
-                                {order.products.map((item, index) => (
-                                    <div key={index} className="order-item">
-                                        <span>{item.name}</span>
-                                        <span>x{item.quantity}</span>
-                                        <span>${item.price}</span>
-                                    </div>
-                                ))}
-                            </div>
-                            <p className="order-total">Total: ${order.total}</p>
+                            <p><strong>Customer:</strong> {order.userName}</p>
+                            <p><strong>Phone:</strong> {order.phoneNumber}</p>
+                            <p><strong>Amount:</strong> ${order.amount}</p>
+                            <p><strong>Date:</strong> {new Date(order.createdAt).toLocaleString()}</p>
+                            {order.transactionId && (
+                                <p><strong>Transaction ID:</strong> {order.transactionId}</p>
+                            )}
                         </div>
                         <button 
-                            onClick={() => generateReceipt(order._id)}
+                            onClick={() => generateReceipt(order)}
                             className="generate-receipt-btn"
                         >
                             Generate Receipt
