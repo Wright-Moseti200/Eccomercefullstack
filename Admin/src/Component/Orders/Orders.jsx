@@ -25,41 +25,50 @@ const Orders = () => {
 
     const generateReceipt = async (order) => {
         try {
-            // Fetch product details
-            const productsResponse = await fetch('https://eccomercebackend-u1ce.onrender.com/allproducts');
-            const products = await productsResponse.json();
+            // Add loading state for feedback
+            setLoading(true);
 
-            // Calculate items and total
-            const orderItems = Object.entries(order.cartItems)
+            // Fetch products with error handling
+            let products = [];
+            try {
+                const response = await fetch('https://eccomercebackend-u1ce.onrender.com/allproducts');
+                if (!response.ok) throw new Error('Failed to fetch products');
+                products = await response.json();
+            } catch (error) {
+                console.error('Product fetch error:', error);
+                products = []; // Continue with empty products array
+            }
+
+            // Process cart items with fallback for missing products
+            const orderItems = Object.entries(order.cartItems || {})
                 .filter(([_, quantity]) => quantity > 0)
                 .map(([productId, quantity]) => {
                     const product = products.find(p => p.id === parseInt(productId));
-                    if (!product) return null;
                     return {
-                        name: product.name,
-                        price: product.new_price,
+                        name: product ? product.name : `Product ID: ${productId}`,
+                        price: product ? product.new_price : 0,
                         quantity: quantity,
-                        total: product.new_price * quantity,
-                        category: product.category
+                        total: (product ? product.new_price : 0) * quantity,
+                        category: product ? product.category : 'N/A'
                     };
-                })
-                .filter(item => item !== null);
+                });
 
             const subtotal = orderItems.reduce((sum, item) => sum + item.total, 0);
 
+            // Generate receipt content with error handling for undefined values
             const receiptContent = `
 ==========================================
            E-COMMERCE STORE
           OFFICIAL RECEIPT
 ==========================================
-Date: ${new Date(order.createdAt).toLocaleString()}
-Receipt #: ${order.mpesaRequestId}
+Date: ${new Date(order.createdAt || Date.now()).toLocaleString()}
+Receipt #: ${order.mpesaRequestId || 'N/A'}
 Transaction ID: ${order.transactionId || 'Pending'}
 
 CUSTOMER INFORMATION
 ------------------------------------------
-Name: ${order.userName}
-Phone: ${order.phoneNumber}
+Name: ${order.userName || 'N/A'}
+Phone: ${order.phoneNumber || 'N/A'}
 
 ORDER DETAILS
 ------------------------------------------
@@ -68,7 +77,7 @@ ${orderItems.map(item =>
 Category: ${item.category}
 Price: $${item.price.toFixed(2)}
 Quantity: ${item.quantity}
-Subtotal: $${item.total.toFixed(2)}
+Item Total: $${item.total.toFixed(2)}
 ------------------------------------------`
 ).join('\n')}
 
@@ -77,35 +86,41 @@ PAYMENT SUMMARY
 Subtotal: $${subtotal.toFixed(2)}
 Shipping: Free
 ------------------------------------------
-Total Amount: $${order.amount.toFixed(2)}
+Total Amount: $${order.amount ? order.amount.toFixed(2) : '0.00'}
 
 PAYMENT INFORMATION
 ------------------------------------------
-Status: ${order.status.toUpperCase()}
+Status: ${(order.status || 'PENDING').toUpperCase()}
 Payment Method: M-PESA
 Transaction ID: ${order.transactionId || 'Pending'}
 Date Paid: ${order.status === 'completed' ? 
-    new Date(order.updatedAt).toLocaleString() : 
+    new Date(order.updatedAt || Date.now()).toLocaleString() : 
     'Pending'}
 
 ==========================================
         Thank you for shopping!
-         Please visit again
-==========================================
-`;
+==========================================`;
 
-            // Create and trigger download
-            const element = document.createElement('a');
-            const file = new Blob([receiptContent], {type: 'text/plain'});
-            element.href = URL.createObjectURL(file);
-            element.download = `receipt_${order.mpesaRequestId}.txt`;
-            document.body.appendChild(element);
-            element.click();
-            document.body.removeChild(element);
+            // Create and trigger download with error handling
+            try {
+                const element = document.createElement('a');
+                const file = new Blob([receiptContent], {type: 'text/plain'});
+                const url = URL.createObjectURL(file);
+                element.href = url;
+                element.download = `receipt_${order.mpesaRequestId || Date.now()}.txt`;
+                document.body.appendChild(element);
+                element.click();
+                document.body.removeChild(element);
+                URL.revokeObjectURL(url);
+            } catch (downloadError) {
+                throw new Error(`Failed to download receipt: ${downloadError.message}`);
+            }
 
         } catch (error) {
-            console.error('Error generating receipt:', error);
-            alert('Failed to generate receipt');
+            console.error('Receipt generation error:', error);
+            alert(`Failed to generate receipt: ${error.message}`);
+        } finally {
+            setLoading(false);
         }
     };
 
